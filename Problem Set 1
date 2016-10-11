@@ -1,0 +1,310 @@
+---
+title: 'INFX 573: Problem Set 1 - Exploring Data'
+author: "Stephanie Ballard"
+date: 'Due: Tuesday, October 11, 2016'
+output: pdf_document
+---
+
+
+##### Collaborators: Google, stack overflow, our textbook, spoke to a few classmates about the deadline (Emma Clarke and Amanda Cummings).
+
+
+##### Instructions: #####
+
+~~Before beginning this assignment, please ensure you have access to R and RStudio.~~
+
+~~1. Download the `problemset1.Rmd` file from Canvas. Open `problemset1.Rmd` in RStudio and supply your solutions to the assignment by editing `problemset1.Rmd`.~~ 
+
+~~2. Replace the "Insert Your Name Here" text in the `author:` field with your own full name. Any collaborators must be listed on the top of your assignment.~~
+
+~~3. Be sure to include well-documented (e.g. commented) code chucks, figures and clearly written text chunk explanations as necessary. Any figures should be clearly labeled and appropriately referenced within the text.~~ 
+
+~~4. Collaboration on problem sets is acceptable, and even encouraged, but each student must turn in an individual write-up in his or her own words and his or her own work. The names of all collaborators must be listed on each assignment. Do not copy-and-paste from other students' responses or code.~~
+
+5. When you have completed the assignment and have **checked** that your code both runs in the Console and knits correctly when you click `Knit PDF`, rename the R Markdown file to `YourLastName_YourFirstName_ps1.Rmd`, knit a PDF and submit both the PDF file on Canvas.
+
+##### Setup: #####
+
+
+```{r Setup, message=FALSE}
+# Libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(rmarkdown)
+library(RColorBrewer)
+
+
+```
+
+#### Problem 1: Exploring the NYC Flights Data ####
+
+In this problem set we will use the data on all flights that departed NYC (i.e. JFK, LGA or EWR) in 2013. You can find this data in the `nycflights13` R package. 
+
+##### (a) Importing and Inspecting Data: ##### 
+Load the data and describe in a short paragraph how the data was collected and what each variable represents. Perform a basic inspection of the data and discuss what you find.
+
+```{r load_inspect}
+
+# library for data
+library(nycflights13)
+
+# pull up view window - helpful to reference names of columns
+View(flights)
+
+# Show top of data - 16 x 9 tibble
+head(flights)
+
+# Show bottom of data - NA's present
+tail(flights)
+
+# view documentation
+?flights
+
+# List names of columns
+names(flights)
+
+# Are there NA's in the departure times?
+filter(flights, is.na(dep_time))
+
+# How many NA's?
+count(flights, is.na(dep_time))
+
+```
+
+
+According to the documentation in R, this data was collected by the Office of Airline Information and the Bureau of Transportation Statistics. This data are for 2013 flights from New York City airports to other destinations and the variables include:
+
+- General information about the flight (origin, destination, carrier, flight number, tail number)
+
+- Time data for departures and arrivals (year, month, day, departure time, scheduled departure time, departure delay, arrival time, scheduled arrival time, arrival delay)
+
+- Data about in air travel (air time, distance, hour, minute, time hour)
+
+
+In my initial inspection, I did a standard check of head and tail to view the top and bottom of the data frame. There are many variables in this data set, so I pulled up the data frame in the viewer window, listed the column names and the documentation. In the tail view, I noted NA's in the dep_time variable. 
+
+Using filter and count functions, I looked more closely at the number of NA's in the dep_time column. The number of NA's indicate that this is not a data error. I don't see this stated explicitly in the documentation, but, for the purposes of this analysis, I am assuming that an NA in the
+dep_time column represents a cancelled flight.
+
+
+
+##### (b) Formulating Questions: ##### 
+Consider the NYC flights data. Formulate two motivating questions you want to explore using this data. Describe why these questions are interesting and how you might go about answering them. 
+
+1. Is there a correlation between origin and cancelled flights? 
+This question could have an affect on ticket purchasers. If flights from a certain origin are more likely to be cancelled, the passengers may want to book from a different origin.
+
+To answer this question, I would group flights by origin destination, then calculate the proportion of cancelled flights for each origin. I would do this as a proportion of total flights, because some destinations may have more traffic than others, so a higher raw number of cancellations may not indicate a higher percentage of cancelled flights.
+
+2. Are certain routes more likely to be delayed?
+This, again, could be useful information for passengers. If a leg of their trip is more likely to be delayed, they may choose to book a different route.
+
+Here, I would group flights by carrier and number to put like routes together. Then, by route, I would average the delay time.
+
+
+##### (c) Exploring Data: ##### 
+
+For each of the questions you proposed in Problem 1b, perform an exploratory data analysis designed to address the question. At a minimum, you should produce two visualizations related to each question. Be sure to describe what the visuals show and how they speak to your question of interest. 
+
+#Question 1 - flight cancellation by origin
+
+```{r Q1}
+
+# Question 1 - correlation between being cancelled and origin
+# get origins
+levels(factor(flights$origin))
+
+# create a data frame with only cancelled flights, view and count
+Cancelled <- filter(flights, is.na(dep_time))
+View(Cancelled)
+
+# 8255 cancelled flights
+count(Cancelled)
+
+```
+
+```{r fig1}
+
+# Figure 1 - plot # of cancelled flights by origin 
+ggplot(Cancelled) + geom_bar(aes(origin), fill = "grey") +
+ ggtitle("Cancelled flights by departure airport (2013)") +
+ xlab("Airport of Origin") + 
+ ylab("Number of cancelled flights") +
+ theme_minimal()
+ 
+
+```
+
+In this plot, the raw number of cancellations is represented by a bar for each airport. This plot shows that JFK has the least number of cancellations, about half the number of cancellations from EWR and LGA. EWR has the most cancellations and LGA the 2nd most cancellations.
+
+This visualization begins to address Q1 by comparing the number of cancellations from each originating airport. This visualization may be misleading, however, because it does not account for overall air traffic.
+
+```{r}
+# Now calculate as a proportion of total flights
+
+# variable that counts cancelled flights by origin
+cancel.counts <- count(group_by(Cancelled, origin))
+cancel.counts
+
+# Add total flights by origin to variable
+allflight <- count(group_by(flights, origin))
+allflight
+total.flights <- allflight$n
+total.flights
+
+# add total flights and the percentage of cancelled flights to cancel counts var
+cancel.counts <- mutate(cancel.counts,
+ all.count = total.flights,
+ percentage = n/all.count * 100
+)
+```
+
+```{r fig 2}
+
+# Fig 2 - plot percentage of cancelled flights by origin
+ggplot(cancel.counts, aes(origin, percentage)) + 
+ geom_bar(stat = "identity", aes(fill = origin)) +
+ scale_fill_brewer(palette = "Greys") +
+ ggtitle("Percentage of Cancelled Flights by Departure Airport (2013)") +
+ xlab("Airport of Origin") + 
+ ylab("Percentage of Flights Cancelled") +
+ theme_minimal()
+
+```
+
+This visualization shows the percentage of cancelled flights for each origin. The percentage is represented by a bar for each airport.
+
+By calculating the percentage of cancelled flights, we can see that the raw number of cancelled flights was indeed misleading. LGA has the highest percentage of cancelled flights, despite having a smaller actual number of cancelled flights than EWR. As this is only data from one year, it would be an extrapolation to suggest that a flight today from LGA has a higher chance of being cancelled. But, this analysis does show that LGA had the highest percentage of cancelled flights in 2013. If this was a trend observed over multiple years, that could help passengers determine which airport to depart from to avoid having a cancelled flight. 
+
+#Question 2 - delay by route
+
+```{r Q2}
+# Are certain routes more likely to be delayed?
+
+
+# group routes by carrier and flight to set together by routes
+routes <- group_by(flights, carrier, flight)
+
+# use summarize function to calculate average delay by route
+avg.delay <- summarize(routes, delay = mean(dep_delay, na.rm = TRUE))
+
+# checking the average delays by increasing and decreasing order
+arrange(avg.delay, delay)
+arrange(avg.delay, desc(delay))
+
+```
+
+```{r fig3}
+# Fig 3 - plotting by average delay, 
+# each dot is a flight, lined up over the carrier
+# y axis is average delay
+ggplot(avg.delay, aes(carrier, delay)) +
+ geom_point() +
+ ggtitle("Average Delay for Routes") +
+ xlab("Carrier") +
+ ylab("Average Delay in Minutes")
+
+
+```
+
+In this visualization, each category on the x axis is a carrier and each dot is a flight route as determined by grouping flight numbers together. The point's position on the y axis corresponds to the flights' average delay time. In this plot, there are extreme values present.
+
+In analyzing this plot, I realized that this summarization of the data does not account for the number of flights per route used to calculate the average delay. This is particularly important for outliers where the average delay is enormous. One Delta flight, for example, has an average delay of over 300 minutes. Was this a one time flight that was very delayed? Or a flight every Tuesday that is always delayed? I am pausing this line of inquiry to check average delay by destination city instead of route to compare. 
+
+```{r}
+# previous plot returned a message that 12 rows have NA's
+# Went back to check - the 12 are NaN?? disregard for now
+filter(avg.delay, is.na(delay))
+
+```
+
+
+```{r by.dest}
+
+# group routes by carrier and flight to set together by flight
+dest <- group_by(flights, dest)
+count(group_by(flights, dest))
+
+# use summarize function to calculate average delay by route
+avg.dest.delay <- summarize(dest, delay = mean(dep_delay, na.rm = TRUE))
+
+```
+
+```{r fig4}
+
+# Figure 4 -plotting by average delay and destination
+# each dot is a flight, lined up over the carrier
+# y axis is average delay
+ggplot(avg.dest.delay, aes(dest, delay)) +
+ geom_point() +
+ ggtitle("Average Delay by destination") +
+ xlab("Destination") +
+ ylab("Average Delay in Minutes")
+
+```
+
+This quick plot shows that when analyzing departure delay by destination, the average delay time is less than 60 minutes. Given that analyzing delay time by route gives a maximum average delay of 346 minutes, I am narrowing my focus to regular routes of five large carriers. I define regular as routes that are flown at least once per week (minimum of 52 flights). This will create a group of similar route patterns that may reduce the variation in the delay time for this analysis. I selected five large carriers to reduce the amount of information in the visualization. These carriers can easily be changed to allow for different analyses. 
+
+```{r regular.routes}
+
+# back to Q2
+# count the number of flights by route
+num.routes <- count(group_by(flights, carrier, flight))
+num.routes
+
+# merge the two tibbles created for this analysis
+# num.routes counts the number of flights per route
+# avg.delay has the average delay for each route
+route.delay <- merge(num.routes, avg.delay)
+View(route.delay)
+
+# Pulling specific carriers - large national carriers
+(big5 <- c("AA", "DL", "UA", "US", "WN"))
+
+# filter number of flights as greater than or equal to 52 (at least once a week) # and from the chose carriers
+reg.routes <- filter(route.delay, n >= 52 & carrier == big5)
+View(reg.routes)
+
+```
+
+
+```{r fig5}
+
+# Fig 5 - plot the regular routes by carrier
+# y axis is average delay in minutes
+# each point is a regular route
+ggplot(reg.routes, aes(carrier, delay, alpha = 1/25, size = 3)) +
+ geom_point(aes(color = n)) +
+ ggtitle("Average Delay of Regular Routes in 2013") +
+ xlab("Carrier") +
+ ylab("Average Delay in Minutes") +
+ scale_colour_continuous(low = "blue", high = "red", name = "# flights") +
+ scale_alpha(guide = FALSE) + # hide legend
+ scale_size(guide = FALSE) + # hide legend
+ theme_minimal()
+
+```
+
+In this visualization, regular routes are represented by points organized by carrier. The color of each route corresponds to the number of times that flight was flow in 2013. If a flight was flown less than 100 times that year it will appear blue. As the number of flights for each route increases the color turns purple, then red at the highest number of flights per route. The position of the point in relation to the y axis corresponds to the average delay. Using this visualization, you can determine flight frequency and average delay (i.e., [point] route from x carrier was flown [color] times in 2013 and had an average delay of y minutes.)
+
+Routes that stand out initially are red points that are above an average delay of 25 minutes. The red color indicates that these flights were flown more than twice a week yet averaged a large delay.
+
+The carriers AA, DL, UA, and US have a relatively compressed range of delays. The carrier WN has a large range of delays fewer regular routes. 
+
+This plot shows us that there is not a clear relationship between the regularity of a route and the average delay. The lack of consistent pattern or color grouping indicates that there is no aggregate trend using this method of analysis.
+
+
+##### (d) Challenge Your Results: ##### 
+
+After completing the exploratory analysis from Problem 1c, do you have any concerns about your findings? Comment on any ethical and/or privacy concerns you have with your analysis. 
+
+#Concerns
+
+I have two main themes of concern after this analysis, one related to the data and one ethical. 
+
+My concerns about the data relate to the limited time frame covered by the data and the fact that it comes from one source. Any conclusions drawn from this analysis are limited to the time period of the data, and drawing any inferences to present day is an extrapolation. Additionally, aviation is a highly regulated industry and it's possible that there are other data sets one could use for triangulation to increase the variety and robustness of the analysis.
+
+My ethical concerns stem from the fact that while we are analyzing "flight data" we are essentially assessing the performance of a very complex human system using a very small set of parameters to determine success. It is very easy to blame the flight crew for a delayed flight, but, in reality, there are so many people that have to work together seemlessly for a flight to operate. A good analysis would take many other performance markers into account, but there is always the possibility that this type of analysis could contribute negatively to an individual's performance review. As always, people are involved in this system, and we need to be careful about the kinds of conclusions we draw when we simplify reality for analysis. 
+
+
