@@ -1,0 +1,15 @@
+---
+title: "10/11/16"
+author: "Stephanie Ballard"
+date: "October 11, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+
+
+```
+
